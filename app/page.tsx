@@ -174,9 +174,9 @@ export default function Home() {
   const [equippedItems, setEquippedItems] = useState<string[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(45);
-  const [hasAudioStarted, setHasAudioStarted] = useState(false);
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousUnlockedIdsRef = useRef<string[]>([]);
+  const triedAutoplayRef = useRef(false);
 
   const hasAnswered = selectedIndex !== null;
 
@@ -204,11 +204,12 @@ export default function Home() {
       return;
     }
 
+    audio.muted = isMuted;
+    audio.volume = Math.max(0, Math.min(1, volume / 100));
+
     audio
       .play()
-      .then(() => {
-        setHasAudioStarted(true);
-      })
+      .then(() => {})
       .catch(() => {
         // Browser autoplay policies can block playback before user interaction.
       });
@@ -325,6 +326,47 @@ export default function Home() {
     }
   }, [isMuted, volume]);
 
+  useEffect(() => {
+    if (triedAutoplayRef.current) {
+      return;
+    }
+
+    triedAutoplayRef.current = true;
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.muted = false;
+    audio.volume = Math.max(0, Math.min(1, volume / 100));
+
+    audio
+      .play()
+      .then(() => {
+        setIsMuted(false);
+      })
+      .catch(() => {
+        // If unmuted autoplay is blocked, start muted so playback begins on load.
+        audio.muted = true;
+        audio
+          .play()
+          .then(() => {
+            setIsMuted(true);
+
+            // Try to switch to audible playback shortly after start when possible.
+            const unmuteTimer = setTimeout(() => {
+              audio.muted = false;
+              setIsMuted(false);
+            }, 220);
+
+            return () => clearTimeout(unmuteTimer);
+          })
+          .catch(() => {
+            // Final fallback: wait for explicit user interaction.
+          });
+      });
+  }, [volume]);
+
   function toggleEquippedItem(itemSrc: string) {
     if (equippedItems.includes(itemSrc)) {
       setEquippedItems(equippedItems.filter((item) => item !== itemSrc));
@@ -337,12 +379,10 @@ export default function Home() {
     <main
       className="game-screen"
       onPointerDown={() => {
-        if (!hasAudioStarted) {
-          tryStartAudio();
-        }
+        tryStartAudio();
       }}
     >
-      <audio ref={audioRef} src="/music.mp3" loop autoPlay preload="auto" />
+      <audio ref={audioRef} src="/music.mp3" loop autoPlay playsInline preload="auto" />
       <audio ref={crowdAudioRef} src="/crowd.mp3" preload="auto" />
 
       <div className="bg-blob bg-blob-one" aria-hidden="true" />
