@@ -156,6 +156,8 @@ function getRandomQuestionByLevel(currentScore: number, subject: Subject): Quest
 }
 
 export default function Home() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const crowdAudioRef = useRef<HTMLAudioElement | null>(null);
   const [subject, setSubject] = useState<Subject | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -170,6 +172,9 @@ export default function Home() {
   const [inventoryItems, setInventoryItems] = useState<string[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [equippedItems, setEquippedItems] = useState<string[]>([]);
+  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(45);
+  const [hasAudioStarted, setHasAudioStarted] = useState(false);
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousUnlockedIdsRef = useRef<string[]>([]);
 
@@ -192,6 +197,22 @@ export default function Home() {
   const unlockedAchievementIds = new Set(
     unlockedAchievements.map((achievement) => achievement.id)
   );
+
+  function tryStartAudio() {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio
+      .play()
+      .then(() => {
+        setHasAudioStarted(true);
+      })
+      .catch(() => {
+        // Browser autoplay policies can block playback before user interaction.
+      });
+  }
 
   function handleSubjectPick(nextSubject: Subject) {
     setCurrentQuestion(getRandomQuestionByLevel(score, nextSubject));
@@ -270,6 +291,15 @@ export default function Home() {
       return;
     }
 
+    const crowdAudio = crowdAudioRef.current;
+    if (crowdAudio && !isMuted) {
+      crowdAudio.currentTime = 0;
+      crowdAudio.volume = Math.max(0, Math.min(1, volume / 100));
+      crowdAudio.play().catch(() => {
+        // Some browsers still may block playback if interaction was not detected.
+      });
+    }
+
     const showTimer = setTimeout(() => setShowConfetti(true), 0);
     const hideTimer = setTimeout(() => setShowConfetti(false), 2600);
 
@@ -277,7 +307,23 @@ export default function Home() {
       clearTimeout(showTimer);
       clearTimeout(hideTimer);
     };
-  }, [unlockedAchievements]);
+  }, [unlockedAchievements, isMuted, volume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.muted = isMuted;
+    audio.volume = Math.max(0, Math.min(1, volume / 100));
+
+    const crowdAudio = crowdAudioRef.current;
+    if (crowdAudio) {
+      crowdAudio.muted = isMuted;
+      crowdAudio.volume = Math.max(0, Math.min(1, volume / 100));
+    }
+  }, [isMuted, volume]);
 
   function toggleEquippedItem(itemSrc: string) {
     if (equippedItems.includes(itemSrc)) {
@@ -288,7 +334,17 @@ export default function Home() {
   }
 
   return (
-    <main className="game-screen">
+    <main
+      className="game-screen"
+      onPointerDown={() => {
+        if (!hasAudioStarted) {
+          tryStartAudio();
+        }
+      }}
+    >
+      <audio ref={audioRef} src="/music.mp3" loop autoPlay preload="auto" />
+      <audio ref={crowdAudioRef} src="/crowd.mp3" preload="auto" />
+
       <div className="bg-blob bg-blob-one" aria-hidden="true" />
       <div className="bg-blob bg-blob-two" aria-hidden="true" />
       <div className="bg-blob bg-blob-three" aria-hidden="true" />
@@ -369,75 +425,111 @@ export default function Home() {
       </section>
 
       <section className="panel panel-gameplay">
-        <h1 className="game-title">מסע הלמידה של אדם</h1>
-        <p className="game-subtitle">בחרו מקצוע, פתרו שאלות, ושברו את השיא שלכם.</p>
+        <div className="gameplay-main">
+          <h1 className="game-title">מסע הלמידה של אדם</h1>
+          <p className="game-subtitle">בחרו מקצוע, פתרו שאלות, ושברו את השיא שלכם.</p>
 
-        {!subject ? (
-          <div className="subject-picker" role="group" aria-label="בחרו מקצוע">
-            <p className="subject-text">בחרו מקצוע</p>
-            <div className="subject-actions">
-              <button type="button" className="subject-button" onClick={() => handleSubjectPick("math")}>
-                חשבון
-              </button>
-              <button
-                type="button"
-                className="subject-button subject-reading"
-                onClick={() => handleSubjectPick("reading")}
-              >
-                קריאה
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className={`question-card ${subject === "math" ? "math-mode" : ""}`}>
-            <div className="question-topline">
-              <span className="subject-chip">{subject === "math" ? "חשבון" : "קריאה"}</span>
-              <button type="button" className="switch-link" onClick={() => setSubject(null)}>
-                החלפת מקצוע
-              </button>
-            </div>
-
-            <p className="question-prompt">{currentQuestion?.prompt}</p>
-
-            <div className="answers-grid">
-              {currentQuestion?.choices.map((choice, index) => {
-                const isCorrect = index === currentQuestion.correctIndex;
-                const isSelected = index === selectedIndex;
-
-                let className = "answer-button";
-                if (hasAnswered && isCorrect) {
-                  className += " is-correct";
-                }
-                if (hasAnswered && isSelected && !isCorrect) {
-                  className += " is-wrong";
-                }
-
-                return (
-                  <button
-                    key={`${currentQuestion.prompt}-${choice}`}
-                    type="button"
-                    className={className}
-                    onClick={() => handleAnswer(index)}
-                    disabled={hasAnswered}
-                  >
-                    {choice}
-                  </button>
-                );
-              })}
-            </div>
-
-            {hasAnswered && (
-              <div className="result-row">
-                <p className="result-text">
-                  {selectedIndex === currentQuestion?.correctIndex ? `כל הכבוד! קיבלתם ${pointsPerCorrect} נקודות` : "לא הפעם, נסו את השאלה הבאה"}
-                </p>
-                <button type="button" className="next-button" onClick={nextQuestion}>
-                  לשאלה הבאה
+          {!subject ? (
+            <div className="subject-picker" role="group" aria-label="בחרו מקצוע">
+              <p className="subject-text">בחרו מקצוע</p>
+              <div className="subject-actions">
+                <button type="button" className="subject-button" onClick={() => handleSubjectPick("math")}>
+                  חשבון
+                </button>
+                <button
+                  type="button"
+                  className="subject-button subject-reading"
+                  onClick={() => handleSubjectPick("reading")}
+                >
+                  קריאה
                 </button>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className={`question-card ${subject === "math" ? "math-mode" : ""}`}>
+              <div className="question-topline">
+                <span className="subject-chip">{subject === "math" ? "חשבון" : "קריאה"}</span>
+                <button type="button" className="switch-link" onClick={() => setSubject(null)}>
+                  החלפת מקצוע
+                </button>
+              </div>
+
+              <p className="question-prompt">{currentQuestion?.prompt}</p>
+
+              <div className="answers-grid">
+                {currentQuestion?.choices.map((choice, index) => {
+                  const isCorrect = index === currentQuestion.correctIndex;
+                  const isSelected = index === selectedIndex;
+
+                  let className = "answer-button";
+                  if (hasAnswered && isCorrect) {
+                    className += " is-correct";
+                  }
+                  if (hasAnswered && isSelected && !isCorrect) {
+                    className += " is-wrong";
+                  }
+
+                  return (
+                    <button
+                      key={`${currentQuestion.prompt}-${choice}`}
+                      type="button"
+                      className={className}
+                      onClick={() => handleAnswer(index)}
+                      disabled={hasAnswered}
+                    >
+                      {choice}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {hasAnswered && (
+                <div className="result-row">
+                  <p className="result-text">
+                    {selectedIndex === currentQuestion?.correctIndex ? `כל הכבוד! קיבלתם ${pointsPerCorrect} נקודות` : "לא הפעם, נסו את השאלה הבאה"}
+                  </p>
+                  <button type="button" className="next-button" onClick={nextQuestion}>
+                    לשאלה הבאה
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="audio-controls" role="group" aria-label="בקרת מוזיקה">
+          <button
+            type="button"
+            className="audio-mute-button"
+            onClick={() => {
+              setIsMuted((current) => !current);
+              tryStartAudio();
+            }}
+          >
+            {isMuted ? "🔊 נגן מוזיקה וצלילים" : "🔊 השתק מוזיקה וצלילים"}
+          </button>
+
+          <label className="audio-volume-label" htmlFor="volume-slider">
+            עוצמה
+          </label>
+          <input
+            id="volume-slider"
+            className="audio-volume-slider"
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={volume}
+            onChange={(event) => {
+              const nextVolume = Number(event.target.value);
+              setVolume(nextVolume);
+              if (nextVolume > 0 && isMuted) {
+                setIsMuted(false);
+              }
+              tryStartAudio();
+            }}
+          />
+        </div>
       </section>
 
       <aside className="panel panel-hud">
