@@ -76,6 +76,18 @@ body::after {
   z-index: 1;
 }
 
+.game-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(60, 125, 220, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60, 125, 220, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+  z-index: 0;
+}
+
 .bg-blob {
   position: absolute;
   border-radius: 999px;
@@ -114,12 +126,49 @@ body::after {
 
 .panel {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   border: 2px solid var(--line);
   border-radius: 20px;
-  background: var(--surface);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.86) 0%, rgba(240, 250, 255, 0.86) 100%);
   box-shadow: 0 12px 30px rgba(44, 75, 157, 0.16);
   padding: 16px;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.92;
+  z-index: 0;
+  background-image:
+    radial-gradient(circle at 14% 16%, rgba(110, 170, 255, 0.34) 0 34px, transparent 36px),
+    radial-gradient(circle at 86% 20%, rgba(255, 196, 108, 0.34) 0 28px, transparent 30px),
+    radial-gradient(circle at 24% 84%, rgba(126, 228, 190, 0.3) 0 30px, transparent 32px),
+    radial-gradient(circle at 78% 78%, rgba(188, 165, 255, 0.28) 0 36px, transparent 38px);
+}
+
+.panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.32;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0) 0px,
+    rgba(255, 255, 255, 0) 14px,
+    rgba(255, 255, 255, 0.6) 14px,
+    rgba(255, 255, 255, 0.6) 18px
+  );
+}
+
+.panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 .panel-title {
@@ -136,6 +185,21 @@ body::after {
 .panel-hud {
   display: flex;
   flex-direction: column;
+}
+
+.panel-kid {
+  background:
+    linear-gradient(170deg, rgba(202, 233, 255, 0.98) 0%, rgba(221, 255, 241, 0.98) 100%);
+}
+
+.panel-gameplay {
+  background:
+    linear-gradient(170deg, rgba(255, 244, 200, 0.98) 0%, rgba(255, 232, 186, 0.98) 100%);
+}
+
+.panel-hud {
+  background:
+    linear-gradient(170deg, rgba(213, 229, 255, 0.98) 0%, rgba(205, 247, 233, 0.98) 100%);
 }
 
 .kid-container {
@@ -470,6 +534,55 @@ body::after {
   font-variant-numeric: tabular-nums;
 }
 
+.achievements-box {
+  border: 1px solid #b8d4ff;
+  border-radius: 12px;
+  padding: 10px;
+  background: #eef5ff;
+}
+
+.achievements-title {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: #2a4b89;
+  text-align: start;
+}
+
+.achievements-grid {
+  display: grid;
+  gap: 7px;
+}
+
+.achievement-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #c7d9fb;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: #f7fbff;
+  color: #7286ae;
+  opacity: 0.7;
+}
+
+.achievement-chip.is-unlocked {
+  border-color: #ffb93d;
+  background: linear-gradient(180deg, #fff8df 0%, #ffefc0 100%);
+  color: #5f3b00;
+  opacity: 1;
+}
+
+.achievement-icon {
+  font-size: 1rem;
+  inline-size: 1.2rem;
+  text-align: center;
+}
+
+.achievement-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .store-button {
   margin-block-start: 10px;
   inline-size: 100%;
@@ -680,14 +793,14 @@ body::after {
 
 .confetti {
   position: absolute;
-  width: 8px;
-  height: 8px;
-  background: radial-gradient(circle, var(--accent) 0%, var(--accent-deep) 100%);
-  border-radius: 50%;
+  width: 12px;
+  height: 16px;
+  border-radius: 3px;
   animation: confetti-fall var(--duration, 3s) ease-in forwards;
   animation-delay: var(--delay, 0s);
   opacity: 1;
   top: -10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
 @keyframes float-slow {
@@ -710,10 +823,11 @@ body::after {
 
 .bg-decoration {
   position: fixed;
-  font-size: 3rem;
-  opacity: 0.08;
+  font-size: 4.4rem;
+  opacity: 0.22;
+  filter: drop-shadow(0 8px 10px rgba(255, 255, 255, 0.55));
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
 }
 
 .bg-deco-star {

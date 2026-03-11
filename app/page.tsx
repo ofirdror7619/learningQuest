@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, type CSSProperties } from "react";
 import mathQuestions from "@/data/math-questions-he.json";
 import readingQuestions from "@/data/reading-questions-he.json";
 
@@ -70,7 +70,7 @@ const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "century",
-    name: "💯 מאה כוכבים",
+    name: "💯 מאה נקודות",
     description: "100 תשובות נכונות",
     icon: "💯",
     condition: (state) => state.correctCount >= 100,
@@ -134,6 +134,14 @@ const QUESTION_BANK: Record<Subject, Question[]> = {
   reading: readingQuestions,
 };
 
+const CONFETTI_PIECES = Array.from({ length: 50 }, (_, i) => ({
+  id: i,
+  left: `${(i * 17) % 100}%`,
+  delay: `${((i * 7) % 10) / 20}s`,
+  duration: `${2 + ((i * 5) % 10) / 10}s`,
+  color: ["#ff8b2a", "#4f7de0", "#00a884", "#d82f49", "#ffd54f", "#7c3aed"][i % 6],
+}));
+
 function getPlayerLevel(currentScore: number): number {
   return Math.min(5, Math.floor(currentScore / 2000) + 1);
 }
@@ -163,7 +171,7 @@ export default function Home() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [equippedItems, setEquippedItems] = useState<string[]>([]);
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevLevelRef = useRef(1);
+  const previousUnlockedIdsRef = useRef<string[]>([]);
 
   const hasAnswered = selectedIndex !== null;
 
@@ -173,6 +181,17 @@ export default function Home() {
   const playerLevel = getPlayerLevel(score);
   const pointsToNextLevel = playerLevel < 5 ? playerLevel * 2000 - score : 0;
   const pointsPerCorrect = playerLevel * 10;
+  const achievementState: AchievementState = {
+    score,
+    correctCount,
+    playerLevel,
+    inventoryItems,
+    subjectStats,
+  };
+  const unlockedAchievements = ACHIEVEMENTS.filter((achievement) => achievement.condition(achievementState));
+  const unlockedAchievementIds = new Set(
+    unlockedAchievements.map((achievement) => achievement.id)
+  );
 
   function handleSubjectPick(nextSubject: Subject) {
     setCurrentQuestion(getRandomQuestionByLevel(score, nextSubject));
@@ -241,20 +260,24 @@ export default function Home() {
   const accuracy = roundCount > 0 ? Math.round((correctCount / roundCount) * 100) : 0;
 
   useEffect(() => {
-    if (playerLevel > prevLevelRef.current) {
-      const pieces = Array.from({ length: 50 }).map((_, i) => ({
-        id: i,
-        left: `${Math.random() * 100}%`,
-        delay: `${Math.random() * 0.5}s`,
-        duration: `${2 + Math.random() * 1}s`,
-      }));
-      setConfettiPieces(pieces);
-      setShowConfetti(true);
-      const timer = setTimeout(() => setShowConfetti(false), 3000);
-      return () => clearTimeout(timer);
+    const previous = previousUnlockedIdsRef.current;
+    const current = unlockedAchievements.map((achievement) => achievement.id);
+    const hasNewUnlock = current.some((id) => !previous.includes(id));
+
+    previousUnlockedIdsRef.current = current;
+
+    if (!hasNewUnlock) {
+      return;
     }
-    prevLevelRef.current = playerLevel;
-  }, [playerLevel]);
+
+    const showTimer = setTimeout(() => setShowConfetti(true), 0);
+    const hideTimer = setTimeout(() => setShowConfetti(false), 2600);
+
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [unlockedAchievements]);
 
   function toggleEquippedItem(itemSrc: string) {
     if (equippedItems.includes(itemSrc)) {
@@ -311,8 +334,6 @@ export default function Home() {
             </div>
           )}
         </div>
-
-        <div className="kid-tip">תשובה נכונה נותנת כוכבים.</div>
 
         <button
           type="button"
@@ -420,9 +441,7 @@ export default function Home() {
       </section>
 
       <aside className="panel panel-hud">
-        <h2 className="panel-title">לוח נקודות</h2>
-        <div className="hud-badge">מרוץ הכוכבים</div>
-        <p className="level-rule">כל 2000 נקודות מעלות רמה</p>
+        <div className="hud-badge">מרוץ הנקודות</div>
         <div className="hud-stat">
           <span>נקודות</span>
           <strong>{score}</strong>
@@ -438,23 +457,44 @@ export default function Home() {
 
         <div className="hud-level-card">
           <div className="hud-level-row">
-            <span>רמה</span>
+            <span>רמת קושי</span>
             <strong>{playerLevel}</strong>
           </div>
           <small>{playerLevel < 5 ? `עוד ${pointsToNextLevel} נקודות לרמה הבאה` : "רמה מקסימלית!"}</small>
+        </div>
+
+        <div className="achievements-box">
+          <h3 className="achievements-title">הישגים</h3>
+          <div className="achievements-grid">
+            {unlockedAchievements.length === 0 ? (
+              <p className="inventory-empty">אין הישגים עדיין</p>
+            ) : (
+              unlockedAchievements.map((achievement) => (
+                <div
+                  key={achievement.id}
+                  className={`achievement-chip ${unlockedAchievementIds.has(achievement.id) ? "is-unlocked" : ""}`}
+                  title={achievement.description}
+                >
+                  <span className="achievement-name">{achievement.name}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </aside>
 
       {showConfetti && (
         <div className="confetti-container">
-          {confettiPieces.map((piece) => (
+          {CONFETTI_PIECES.map((piece) => (
             <div
               key={piece.id}
               className="confetti"
               style={{
                 left: piece.left,
-                ...(({ "--delay": piece.delay, "--duration": piece.duration } as unknown as React.CSSProperties)),
-              }}
+                "--delay": piece.delay,
+                "--duration": piece.duration,
+                background: piece.color,
+              } as CSSProperties}
             />
           ))}
         </div>
