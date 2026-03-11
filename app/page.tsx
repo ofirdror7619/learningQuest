@@ -70,10 +70,10 @@ const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "century",
-    name: "💯 מאה נקודות",
-    description: "100 תשובות נכונות",
+    name: "💯 75 תשובות נכונות",
+    description: "ענו נכון על 75 שאלות",
     icon: "💯",
-    condition: (state) => state.correctCount >= 100,
+    condition: (state) => state.correctCount >= 75,
   },
   {
     id: "thousand-points",
