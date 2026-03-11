@@ -33,6 +33,7 @@ body {
   font-family: var(--font-display), "Comic Sans MS", "Trebuchet MS", sans-serif;
   direction: rtl;
   position: relative;
+  margin: 0;
 }
 
 body::before {
@@ -64,11 +65,12 @@ body::after {
 .game-screen {
   position: relative;
   overflow: hidden;
-  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: 260px minmax(320px, 1fr) 240px;
-  gap: 18px;
-  padding: 18px;
+  gap: 14px;
+  padding: 14px;
   background:
     radial-gradient(circle at 85% 85%, rgba(254, 243, 199, 0.4) 0%, transparent 50%),
     radial-gradient(circle at 15% 15%, rgba(219, 234, 254, 0.4) 0%, transparent 50%),
@@ -132,7 +134,7 @@ body::after {
   background:
     linear-gradient(165deg, rgba(255, 255, 255, 0.86) 0%, rgba(240, 250, 255, 0.86) 100%);
   box-shadow: 0 12px 30px rgba(44, 75, 157, 0.16);
-  padding: 16px;
+  padding: 14px;
   overflow: hidden;
 }
 
@@ -513,7 +515,7 @@ body::after {
   justify-content: center;
   border-radius: 999px;
   padding: 6px 12px;
-  margin-block-end: 12px;
+  margin-block-end: 10px;
   font-weight: 800;
   color: #fff;
   background: linear-gradient(90deg, #4f7de0 0%, #3da1f0 100%);
@@ -530,12 +532,12 @@ body::after {
 .hud-stat {
   border: 1px solid #b8d4ff;
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: #f4f8ff;
-  margin-block-end: 10px;
+  margin-block-end: 8px;
 }
 
 .hud-stat span,
@@ -553,9 +555,9 @@ body::after {
   inline-size: 100%;
   border: 1px solid #b8d4ff;
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: #eef5ff;
-  margin-block-end: 10px;
+  margin-block-end: 8px;
   display: grid;
   grid-template-rows: 1fr 1fr;
   align-items: center;
@@ -596,12 +598,12 @@ body::after {
 .achievements-box {
   border: 1px solid #b8d4ff;
   border-radius: 12px;
-  padding: 10px;
+  padding: 8px;
   background: #eef5ff;
 }
 
 .achievements-title {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-size: 0.9rem;
   color: #2a4b89;
   text-align: start;
@@ -609,19 +611,25 @@ body::after {
 
 .achievements-grid {
   display: grid;
-  gap: 7px;
+  gap: 6px;
+}
+
+.achievement-group-title {
+  margin: 2px 0 4px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #3a5d98;
 }
 
 .achievement-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  gap: 2px;
   border: 1px solid #c7d9fb;
   border-radius: 10px;
-  padding: 6px 8px;
+  padding: 5px 7px;
   background: #f7fbff;
   color: #7286ae;
-  opacity: 0.7;
+  opacity: 0.95;
 }
 
 .achievement-chip.is-unlocked {
@@ -629,6 +637,12 @@ body::after {
   background: linear-gradient(180deg, #fff8df 0%, #ffefc0 100%);
   color: #5f3b00;
   opacity: 1;
+}
+
+.achievement-chip.is-locked {
+  border-color: #c4d4f4;
+  background: linear-gradient(180deg, #f5f9ff 0%, #edf4ff 100%);
+  color: #647ba8;
 }
 
 .achievement-icon {
@@ -640,6 +654,12 @@ body::after {
 .achievement-name {
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.achievement-desc {
+  font-size: 0.74rem;
+  font-weight: 600;
+  opacity: 0.92;
 }
 
 .store-button {

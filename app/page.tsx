@@ -104,13 +104,6 @@ const ACHIEVEMENTS: Achievement[] = [
     condition: (state) => state.playerLevel === 5,
   },
   {
-    id: "first-purchase",
-    name: "🛍️ קונה הראשון",
-    description: "רכש פריט ראשון",
-    icon: "🛍️",
-    condition: (state) => state.inventoryItems.length >= 1,
-  },
-  {
     id: "collector",
     name: "🎁 אספן",
     description: "רכש 5 פריטים או יותר",
@@ -181,8 +174,6 @@ export default function Home() {
   const hasAnswered = selectedIndex !== null;
 
   const correctCount = subjectStats.math.correct + subjectStats.reading.correct;
-  const roundCount = subjectStats.math.answered + subjectStats.reading.answered;
-
   const playerLevel = getPlayerLevel(score);
   const pointsToNextLevel = playerLevel < 5 ? playerLevel * 2000 - score : 0;
   const pointsPerCorrect = playerLevel * 10;
@@ -197,6 +188,7 @@ export default function Home() {
   const unlockedAchievementIds = new Set(
     unlockedAchievements.map((achievement) => achievement.id)
   );
+  const lockedAchievements = ACHIEVEMENTS.filter((achievement) => !unlockedAchievementIds.has(achievement.id));
 
   function tryStartAudio() {
     const audio = audioRef.current;
@@ -278,8 +270,6 @@ export default function Home() {
     setScore((current) => current - item.price);
     setInventoryItems((current) => [...current, item.imageSrc]);
   }
-
-  const accuracy = roundCount > 0 ? Math.round((correctCount / roundCount) * 100) : 0;
 
   useEffect(() => {
     const previous = previousUnlockedIdsRef.current;
@@ -582,10 +572,6 @@ export default function Home() {
           <span>תשובות נכונות</span>
           <strong>{correctCount}</strong>
         </div>
-        <div className="hud-stat">
-          <span>דיוק</span>
-          <strong>{accuracy}%</strong>
-        </div>
 
         <div className="hud-level-card">
           <div className="hud-level-row">
@@ -598,18 +584,32 @@ export default function Home() {
         <div className="achievements-box">
           <h3 className="achievements-title">הישגים</h3>
           <div className="achievements-grid">
-            {unlockedAchievements.length === 0 ? (
-              <p className="inventory-empty">אין הישגים עדיין</p>
-            ) : (
-              unlockedAchievements.map((achievement) => (
-                <div
-                  key={achievement.id}
-                  className={`achievement-chip ${unlockedAchievementIds.has(achievement.id) ? "is-unlocked" : ""}`}
-                  title={achievement.description}
-                >
-                  <span className="achievement-name">{achievement.name}</span>
-                </div>
-              ))
+            {unlockedAchievements.length > 0 && <p className="achievement-group-title">הושלמו</p>}
+            {unlockedAchievements.map((achievement) => (
+              <div
+                key={achievement.id}
+                className="achievement-chip is-unlocked"
+                title={achievement.description}
+              >
+                <span className="achievement-name">{achievement.name}</span>
+                <span className="achievement-desc">{achievement.description}</span>
+              </div>
+            ))}
+
+            {lockedAchievements.length > 0 && <p className="achievement-group-title">יעדים הבאים</p>}
+            {lockedAchievements.map((achievement) => (
+              <div
+                key={achievement.id}
+                className="achievement-chip is-locked"
+                title={achievement.description}
+              >
+                <span className="achievement-name">{achievement.name}</span>
+                <span className="achievement-desc">{achievement.description}</span>
+              </div>
+            ))}
+
+            {lockedAchievements.length === 0 && (
+              <p className="inventory-empty">כל ההישגים הושלמו!</p>
             )}
           </div>
         </div>
