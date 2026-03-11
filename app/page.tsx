@@ -652,7 +652,7 @@ export default function Home() {
               </div>
             ))}
 
-            {lockedAchievements.length > 0 && <p className="achievement-group-title">יעדים הבאים</p>}
+            {lockedAchievements.length > 0 && <p className="achievement-group-title">היעדים הבאים</p>}
             {lockedAchievements.map((achievement) => (
               <div
                 key={achievement.id}
