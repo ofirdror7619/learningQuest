@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import mathQuestions from "@/data/math-questions-he.json";
 import readingQuestions from "@/data/reading-questions-he.json";
 
@@ -31,6 +31,22 @@ type StoreItem = {
   price: number;
 };
 
+type Achievement = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  condition: (state: AchievementState) => boolean;
+};
+
+type AchievementState = {
+  score: number;
+  correctCount: number;
+  playerLevel: number;
+  inventoryItems: string[];
+  subjectStats: Record<Subject, SubjectStats>;
+};
+
 const KID_IMAGE_SRC = "/basic-kid.png";
 const STORE_IMAGE_SRC = "/empty-store-new.png";
 
@@ -42,6 +58,65 @@ const STORE_HOTSPOTS: StoreHotspot[] = [
   { left: "20%", top: "62%", width: "13%", height: "17%" },
   { left: "40%", top: "62%", width: "13%", height: "17%" },
   { left: "60%", top: "62%", width: "13%", height: "17%" },
+];
+
+const ACHIEVEMENTS: Achievement[] = [
+  {
+    id: "first-correct",
+    name: "🎯 תשובה ראשונה",
+    description: "תשובה נכונה ראשונה",
+    icon: "🎯",
+    condition: (state) => state.correctCount >= 1,
+  },
+  {
+    id: "century",
+    name: "💯 מאה כוכבים",
+    description: "100 תשובות נכונות",
+    icon: "💯",
+    condition: (state) => state.correctCount >= 100,
+  },
+  {
+    id: "thousand-points",
+    name: "⭐ אלף נקודות",
+    description: "1000 נקודות או יותר",
+    icon: "⭐",
+    condition: (state) => state.score >= 1000,
+  },
+  {
+    id: "math-master",
+    name: "🔢 מתמטיקאי טוב",
+    description: "50 תשובות נכונות בחשבון",
+    icon: "🔢",
+    condition: (state) => state.subjectStats.math.correct >= 50,
+  },
+  {
+    id: "reading-pro",
+    name: "📖 קורא טוב",
+    description: "50 תשובות נכונות בקריאה",
+    icon: "📖",
+    condition: (state) => state.subjectStats.reading.correct >= 50,
+  },
+  {
+    id: "level-five",
+    name: "👑 מפקד הכוכבים",
+    description: "הגיע לרמה 5",
+    icon: "👑",
+    condition: (state) => state.playerLevel === 5,
+  },
+  {
+    id: "first-purchase",
+    name: "🛍️ קונה הראשון",
+    description: "רכש פריט ראשון",
+    icon: "🛍️",
+    condition: (state) => state.inventoryItems.length >= 1,
+  },
+  {
+    id: "collector",
+    name: "🎁 אספן",
+    description: "רכש 5 פריטים או יותר",
+    icon: "🎁",
+    condition: (state) => state.inventoryItems.length >= 5,
+  },
 ];
 
 const STORE_ITEMS: Partial<Record<number, StoreItem>> = {
@@ -85,7 +160,10 @@ export default function Home() {
   const [isStoreOpen, setIsStoreOpen] = useState(false);
   const [showNotEnoughPoints, setShowNotEnoughPoints] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<string[]>([]);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [equippedItems, setEquippedItems] = useState<string[]>([]);
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevLevelRef = useRef(1);
 
   const hasAnswered = selectedIndex !== null;
 
@@ -162,29 +240,77 @@ export default function Home() {
 
   const accuracy = roundCount > 0 ? Math.round((correctCount / roundCount) * 100) : 0;
 
+  useEffect(() => {
+    if (playerLevel > prevLevelRef.current) {
+      const pieces = Array.from({ length: 50 }).map((_, i) => ({
+        id: i,
+        left: `${Math.random() * 100}%`,
+        delay: `${Math.random() * 0.5}s`,
+        duration: `${2 + Math.random() * 1}s`,
+      }));
+      setConfettiPieces(pieces);
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 3000);
+      return () => clearTimeout(timer);
+    }
+    prevLevelRef.current = playerLevel;
+  }, [playerLevel]);
+
+  function toggleEquippedItem(itemSrc: string) {
+    if (equippedItems.includes(itemSrc)) {
+      setEquippedItems(equippedItems.filter((item) => item !== itemSrc));
+    } else {
+      setEquippedItems([...equippedItems, itemSrc]);
+    }
+  }
+
   return (
     <main className="game-screen">
       <div className="bg-blob bg-blob-one" aria-hidden="true" />
       <div className="bg-blob bg-blob-two" aria-hidden="true" />
       <div className="bg-blob bg-blob-three" aria-hidden="true" />
 
+      <div className="bg-decoration bg-deco-star" style={{ top: "10%", left: "5%" }} aria-hidden="true">⭐</div>
+      <div className="bg-decoration bg-deco-book" style={{ top: "20%", right: "8%" }} aria-hidden="true">📚</div>
+      <div className="bg-decoration bg-deco-pencil" style={{ bottom: "15%", left: "3%" }} aria-hidden="true">✏️</div>
+      <div className="bg-decoration bg-deco-star" style={{ bottom: "10%", right: "5%" }} aria-hidden="true">⭐</div>
+      <div className="bg-decoration bg-deco-book" style={{ top: "50%", right: "1%" }} aria-hidden="true">📚</div>
+
       <section className="panel panel-kid">
         <h2 className="panel-title">אדם</h2>
-        {!kidImageFailed ? (
-          <Image
-            src={KID_IMAGE_SRC}
-            alt="Kid character"
-            className="kid-image"
-            width={720}
-            height={960}
-            onError={() => setKidImageFailed(true)}
-          />
-        ) : (
-          <div className="kid-placeholder">
-            <p>הוסיפו את התמונה שלכם</p>
-            <p className="kid-path">public/basic-kid.png</p>
-          </div>
-        )}
+        <div className="kid-container">
+          {!kidImageFailed ? (
+            <>
+              <Image
+                src={KID_IMAGE_SRC}
+                alt="Kid character"
+                className="kid-image"
+                width={720}
+                height={960}
+                onError={() => setKidImageFailed(true)}
+              />
+              {equippedItems.length > 0 && (
+                <div className="equipped-items-overlay">
+                  {equippedItems.map((itemSrc) => (
+                    <Image
+                      key={itemSrc}
+                      src={itemSrc}
+                      alt="Equipped item"
+                      width={120}
+                      height={120}
+                      className="equipped-item-icon"
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="kid-placeholder">
+              <p>הוסיפו את התמונה שלכם</p>
+              <p className="kid-path">public/basic-kid.png</p>
+            </div>
+          )}
+        </div>
 
         <div className="kid-tip">תשובה נכונה נותנת כוכבים.</div>
 
@@ -206,9 +332,15 @@ export default function Home() {
               <p className="inventory-empty">אין פריטים עדיין</p>
             ) : (
               inventoryItems.map((itemSrc, index) => (
-                <div key={`inventory-item-${index}`} className="inventory-item">
+                <button
+                  key={`inventory-item-${index}`}
+                  className={`inventory-item ${equippedItems.includes(itemSrc) ? 'equipped' : ''}`}
+                  onClick={() => toggleEquippedItem(itemSrc)}
+                  type="button"
+                  title="לחצו כדי ללבוש/הורידו"
+                >
                   <Image src={itemSrc} alt="פריט במלאי" width={56} height={56} className="inventory-image" />
-                </div>
+                </button>
               ))
             )}
           </div>
@@ -312,6 +444,21 @@ export default function Home() {
           <small>{playerLevel < 5 ? `עוד ${pointsToNextLevel} נקודות לרמה הבאה` : "רמה מקסימלית!"}</small>
         </div>
       </aside>
+
+      {showConfetti && (
+        <div className="confetti-container">
+          {confettiPieces.map((piece) => (
+            <div
+              key={piece.id}
+              className="confetti"
+              style={{
+                left: piece.left,
+                ...(({ "--delay": piece.delay, "--duration": piece.duration } as unknown as React.CSSProperties)),
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {isStoreOpen && (
         <div
