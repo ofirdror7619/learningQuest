@@ -1,65 +1,367 @@
+"use client";
+
 import Image from "next/image";
+import { useRef, useState } from "react";
+import mathQuestions from "@/data/math-questions-he.json";
+import readingQuestions from "@/data/reading-questions-he.json";
+
+type Subject = "math" | "reading";
+
+type Question = {
+  difficulty: number;
+  prompt: string;
+  choices: string[];
+  correctIndex: number;
+};
+
+type SubjectStats = {
+  correct: number;
+  answered: number;
+};
+
+type StoreHotspot = {
+  left: string;
+  top: string;
+  width: string;
+  height: string;
+};
+
+type StoreItem = {
+  imageSrc: string;
+  price: number;
+};
+
+const KID_IMAGE_SRC = "/basic-kid.png";
+const STORE_IMAGE_SRC = "/empty-store-new.png";
+
+const STORE_HOTSPOTS: StoreHotspot[] = [
+  { left: "10%", top: "24%", width: "13%", height: "17%" },
+  { left: "30%", top: "24%", width: "13%", height: "17%" },
+  { left: "50%", top: "24%", width: "13%", height: "17%" },
+  { left: "70%", top: "24%", width: "13%", height: "17%" },
+  { left: "20%", top: "62%", width: "13%", height: "17%" },
+  { left: "40%", top: "62%", width: "13%", height: "17%" },
+  { left: "60%", top: "62%", width: "13%", height: "17%" },
+];
+
+const STORE_ITEMS: Partial<Record<number, StoreItem>> = {
+  0: { imageSrc: "/helmet.png", price: 100 },
+  1: { imageSrc: "/gloves.png", price: 200 },
+  2: { imageSrc: "/dagger.png", price: 300 },
+  3: { imageSrc: "/boots.png", price: 400 },
+  4: { imageSrc: "/sword.png", price: 500 },
+  5: { imageSrc: "/shield.png", price: 600 },
+  6: { imageSrc: "/hand-shield.png", price: 700 },
+};
+
+const QUESTION_BANK: Record<Subject, Question[]> = {
+  math: mathQuestions,
+  reading: readingQuestions,
+};
+
+function getPlayerLevel(currentScore: number): number {
+  return Math.min(5, Math.floor(currentScore / 2000) + 1);
+}
+
+function getRandomQuestionByLevel(currentScore: number, subject: Subject): Question {
+  const level = getPlayerLevel(currentScore);
+  const questionsForLevel = QUESTION_BANK[subject].filter((question) => question.difficulty === level);
+  const source = questionsForLevel.length > 0 ? questionsForLevel : QUESTION_BANK[subject];
+  const randomIndex = Math.floor(Math.random() * source.length);
+
+  return source[randomIndex];
+}
 
 export default function Home() {
+  const [subject, setSubject] = useState<Subject | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [subjectStats, setSubjectStats] = useState<Record<Subject, SubjectStats>>({
+    math: { correct: 0, answered: 0 },
+    reading: { correct: 0, answered: 0 },
+  });
+  const [kidImageFailed, setKidImageFailed] = useState(false);
+  const [isStoreOpen, setIsStoreOpen] = useState(false);
+  const [showNotEnoughPoints, setShowNotEnoughPoints] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState<string[]>([]);
+  const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hasAnswered = selectedIndex !== null;
+
+  const correctCount = subjectStats.math.correct + subjectStats.reading.correct;
+  const roundCount = subjectStats.math.answered + subjectStats.reading.answered;
+
+  const playerLevel = getPlayerLevel(score);
+  const pointsToNextLevel = playerLevel < 5 ? playerLevel * 2000 - score : 0;
+  const pointsPerCorrect = playerLevel * 10;
+
+  function handleSubjectPick(nextSubject: Subject) {
+    setCurrentQuestion(getRandomQuestionByLevel(score, nextSubject));
+    setSubject(nextSubject);
+    setSelectedIndex(null);
+  }
+
+  function handleAnswer(choiceIndex: number) {
+    if (!currentQuestion || hasAnswered || !subject) {
+      return;
+    }
+
+    const isCorrect = choiceIndex === currentQuestion.correctIndex;
+    setSelectedIndex(choiceIndex);
+
+    setSubjectStats((current) => {
+      const activeStats = current[subject];
+
+      return {
+        ...current,
+        [subject]: {
+          answered: activeStats.answered + 1,
+          correct: activeStats.correct + (isCorrect ? 1 : 0),
+        },
+      };
+    });
+
+    if (isCorrect) {
+      setScore((current) => current + getPlayerLevel(current) * 10);
+    }
+  }
+
+  function nextQuestion() {
+    if (!subject) {
+      return;
+    }
+
+    setCurrentQuestion(getRandomQuestionByLevel(score, subject));
+    setSelectedIndex(null);
+  }
+
+  function handleStoreItemClick(itemIndex: number) {
+    const item = STORE_ITEMS[itemIndex];
+    if (!item) {
+      return;
+    }
+
+    if (score < item.price) {
+      if (warningTimeoutRef.current) {
+        clearTimeout(warningTimeoutRef.current);
+      }
+
+      setShowNotEnoughPoints(true);
+      warningTimeoutRef.current = setTimeout(() => {
+        setShowNotEnoughPoints(false);
+      }, 2000);
+
+      return;
+    }
+
+    setShowNotEnoughPoints(false);
+    setScore((current) => current - item.price);
+    setInventoryItems((current) => [...current, item.imageSrc]);
+  }
+
+  const accuracy = roundCount > 0 ? Math.round((correctCount / roundCount) * 100) : 0;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="game-screen">
+      <div className="bg-blob bg-blob-one" aria-hidden="true" />
+      <div className="bg-blob bg-blob-two" aria-hidden="true" />
+      <div className="bg-blob bg-blob-three" aria-hidden="true" />
+
+      <section className="panel panel-kid">
+        <h2 className="panel-title">אדם</h2>
+        {!kidImageFailed ? (
+          <Image
+            src={KID_IMAGE_SRC}
+            alt="Kid character"
+            className="kid-image"
+            width={720}
+            height={960}
+            onError={() => setKidImageFailed(true)}
+          />
+        ) : (
+          <div className="kid-placeholder">
+            <p>הוסיפו את התמונה שלכם</p>
+            <p className="kid-path">public/basic-kid.png</p>
+          </div>
+        )}
+
+        <div className="kid-tip">תשובה נכונה נותנת כוכבים.</div>
+
+        <button
+          type="button"
+          className="store-button"
+          onClick={() => {
+            setIsStoreOpen(true);
+            setShowNotEnoughPoints(false);
+          }}
+        >
+          חנות
+        </button>
+
+        <div className="inventory-box">
+          <h3 className="inventory-title">מלאי</h3>
+          <div className="inventory-grid">
+            {inventoryItems.length === 0 ? (
+              <p className="inventory-empty">אין פריטים עדיין</p>
+            ) : (
+              inventoryItems.map((itemSrc, index) => (
+                <div key={`inventory-item-${index}`} className="inventory-item">
+                  <Image src={itemSrc} alt="פריט במלאי" width={56} height={56} className="inventory-image" />
+                </div>
+              ))
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section className="panel panel-gameplay">
+        <h1 className="game-title">מסע הלמידה של אדם</h1>
+        <p className="game-subtitle">בחרו מקצוע, פתרו שאלות, ושברו את השיא שלכם.</p>
+
+        {!subject ? (
+          <div className="subject-picker" role="group" aria-label="בחרו מקצוע">
+            <p className="subject-text">בחרו מקצוע</p>
+            <div className="subject-actions">
+              <button type="button" className="subject-button" onClick={() => handleSubjectPick("math")}>
+                חשבון
+              </button>
+              <button
+                type="button"
+                className="subject-button subject-reading"
+                onClick={() => handleSubjectPick("reading")}
+              >
+                קריאה
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={`question-card ${subject === "math" ? "math-mode" : ""}`}>
+            <div className="question-topline">
+              <span className="subject-chip">{subject === "math" ? "חשבון" : "קריאה"}</span>
+              <button type="button" className="switch-link" onClick={() => setSubject(null)}>
+                החלפת מקצוע
+              </button>
+            </div>
+
+            <p className="question-prompt">{currentQuestion?.prompt}</p>
+
+            <div className="answers-grid">
+              {currentQuestion?.choices.map((choice, index) => {
+                const isCorrect = index === currentQuestion.correctIndex;
+                const isSelected = index === selectedIndex;
+
+                let className = "answer-button";
+                if (hasAnswered && isCorrect) {
+                  className += " is-correct";
+                }
+                if (hasAnswered && isSelected && !isCorrect) {
+                  className += " is-wrong";
+                }
+
+                return (
+                  <button
+                    key={`${currentQuestion.prompt}-${choice}`}
+                    type="button"
+                    className={className}
+                    onClick={() => handleAnswer(index)}
+                    disabled={hasAnswered}
+                  >
+                    {choice}
+                  </button>
+                );
+              })}
+            </div>
+
+            {hasAnswered && (
+              <div className="result-row">
+                <p className="result-text">
+                  {selectedIndex === currentQuestion?.correctIndex ? `כל הכבוד! קיבלתם ${pointsPerCorrect} נקודות` : "לא הפעם, נסו את השאלה הבאה"}
+                </p>
+                <button type="button" className="next-button" onClick={nextQuestion}>
+                  לשאלה הבאה
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      <aside className="panel panel-hud">
+        <h2 className="panel-title">לוח נקודות</h2>
+        <div className="hud-badge">מרוץ הכוכבים</div>
+        <p className="level-rule">כל 2000 נקודות מעלות רמה</p>
+        <div className="hud-stat">
+          <span>נקודות</span>
+          <strong>{score}</strong>
         </div>
-      </main>
-    </div>
+        <div className="hud-stat">
+          <span>תשובות נכונות</span>
+          <strong>{correctCount}</strong>
+        </div>
+        <div className="hud-stat">
+          <span>דיוק</span>
+          <strong>{accuracy}%</strong>
+        </div>
+
+        <div className="hud-level-card">
+          <div className="hud-level-row">
+            <span>רמה</span>
+            <strong>{playerLevel}</strong>
+          </div>
+          <small>{playerLevel < 5 ? `עוד ${pointsToNextLevel} נקודות לרמה הבאה` : "רמה מקסימלית!"}</small>
+        </div>
+      </aside>
+
+      {isStoreOpen && (
+        <div
+          className="store-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Store"
+          onClick={() => {
+            setIsStoreOpen(false);
+            setShowNotEnoughPoints(false);
+            if (warningTimeoutRef.current) {
+              clearTimeout(warningTimeoutRef.current);
+            }
+          }}
+        >
+          <div className="store-modal-content" onClick={(event) => event.stopPropagation()}>
+            <div className="store-image-wrap">
+              <Image src={STORE_IMAGE_SRC} alt="Store" width={900} height={700} className="store-image" priority />
+
+              {showNotEnoughPoints && <div className="store-warning">אין מספיק נקודות!</div>}
+
+              {STORE_HOTSPOTS.map((spot, index) => (
+                <div
+                  key={`store-item-${index + 1}`}
+                  className="store-hotspot"
+                  style={{ left: spot.left, top: spot.top, width: spot.width, height: spot.height }}
+                >
+                  {STORE_ITEMS[index] && (
+                    <Image
+                      src={STORE_ITEMS[index].imageSrc}
+                      alt="Store item"
+                      width={180}
+                      height={180}
+                      className="store-item-image"
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    className="store-hotspot-button"
+                    onClick={() => handleStoreItemClick(index)}
+                    aria-label={`פריט ${index + 1}`}
+                  />
+                  {STORE_ITEMS[index] && <div className="store-price">{STORE_ITEMS[index].price} נקודות</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
