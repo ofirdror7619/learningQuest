@@ -4,6 +4,9 @@ import Image from "next/image";
 import { useRef, useState, useEffect, type CSSProperties } from "react";
 import mathQuestions from "@/data/math-questions-he.json";
 import readingQuestions from "@/data/reading-questions-he.json";
+import { ORDERED_STORE_ITEMS } from "@/data/item-prices";
+import { getPlayerState } from "@/data/player-states";
+import { getQuestionPointsForLevel } from "@/data/question-points";
 
 type Subject = "math" | "reading";
 
@@ -31,6 +34,14 @@ type StoreItem = {
   price: number;
 };
 
+type EquippedItemPlacement = {
+  left: string;
+  top: string;
+  width: string;
+  rotate?: number;
+  zIndex?: number;
+};
+
 type Achievement = {
   id: string;
   name: string;
@@ -47,8 +58,8 @@ type AchievementState = {
   subjectStats: Record<Subject, SubjectStats>;
 };
 
-const KID_IMAGE_SRC = "/basic-kid.png";
-const STORE_IMAGE_SRC = "/empty-store-new.png";
+const KID_BACKGROUND_SRC = "/kid/background.png";
+const STORE_IMAGE_SRC = "/empty-store-new-2.png";
 
 const STORE_HOTSPOTS: StoreHotspot[] = [
   { left: "10%", top: "24%", width: "13%", height: "17%" },
@@ -112,14 +123,18 @@ const ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
-const STORE_ITEMS: Partial<Record<number, StoreItem>> = {
-  0: { imageSrc: "/helmet.png", price: 100 },
-  1: { imageSrc: "/gloves.png", price: 200 },
-  2: { imageSrc: "/dagger.png", price: 300 },
-  3: { imageSrc: "/boots.png", price: 400 },
-  4: { imageSrc: "/sword.png", price: 500 },
-  5: { imageSrc: "/shield.png", price: 600 },
-  6: { imageSrc: "/hand-shield.png", price: 700 },
+const STORE_ITEMS: Partial<Record<number, StoreItem>> = Object.fromEntries(
+  ORDERED_STORE_ITEMS.map((item, index) => [index, { imageSrc: item.imageSrc, price: item.price }])
+) as Partial<Record<number, StoreItem>>;
+
+const EQUIPPED_ITEM_PLACEMENTS: Record<string, EquippedItemPlacement> = {
+  "/helmet.png": { left: "51%", top: "17%", width: "31%", zIndex: 5 },
+  "/gloves.png": { left: "50%", top: "46%", width: "34%", zIndex: 4 },
+  "/boots.png": { left: "51%", top: "84%", width: "36%", zIndex: 4 },
+  "/dagger.png": { left: "65%", top: "54%", width: "24%", rotate: 8, zIndex: 6 },
+  "/sword.png": { left: "66%", top: "57%", width: "34%", rotate: 8, zIndex: 6 },
+  "/shield-store.png": { left: "31%", top: "54%", width: "30%", zIndex: 5 },
+  "/plate.png": { left: "51%", top: "60%", width: "36%", zIndex: 5 },
 };
 
 const QUESTION_BANK: Record<Subject, Question[]> = {
@@ -159,9 +174,8 @@ export default function Home() {
     math: { correct: 0, answered: 0 },
     reading: { correct: 0, answered: 0 },
   });
-  const [kidImageFailed, setKidImageFailed] = useState(false);
   const [isStoreOpen, setIsStoreOpen] = useState(false);
-  const [showNotEnoughPoints, setShowNotEnoughPoints] = useState(false);
+  const [storeWarningMessage, setStoreWarningMessage] = useState<string | null>(null);
   const [inventoryItems, setInventoryItems] = useState<string[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [equippedItems, setEquippedItems] = useState<string[]>([]);
@@ -176,7 +190,7 @@ export default function Home() {
   const correctCount = subjectStats.math.correct + subjectStats.reading.correct;
   const playerLevel = getPlayerLevel(score);
   const pointsToNextLevel = playerLevel < 5 ? playerLevel * 2000 - score : 0;
-  const pointsPerCorrect = playerLevel * 10;
+  const pointsPerCorrect = getQuestionPointsForLevel(playerLevel);
   const achievementState: AchievementState = {
     score,
     correctCount,
@@ -189,6 +203,14 @@ export default function Home() {
     unlockedAchievements.map((achievement) => achievement.id)
   );
   const lockedAchievements = ACHIEVEMENTS.filter((achievement) => !unlockedAchievementIds.has(achievement.id));
+  const currentPlayerState = getPlayerState(inventoryItems);
+  const orderedStoreIndexes = Object.keys(STORE_ITEMS)
+    .map((key) => Number(key))
+    .sort((a, b) => a - b);
+  const nextRequiredStoreIndex = orderedStoreIndexes.find((index) => {
+    const candidate = STORE_ITEMS[index];
+    return !!candidate && !inventoryItems.includes(candidate.imageSrc);
+  });
 
   function tryStartAudio() {
     const audio = audioRef.current;
@@ -234,7 +256,7 @@ export default function Home() {
     });
 
     if (isCorrect) {
-      setScore((current) => current + getPlayerLevel(current) * 10);
+      setScore((current) => current + getQuestionPointsForLevel(getPlayerLevel(current)));
     }
   }
 
@@ -247,26 +269,40 @@ export default function Home() {
     setSelectedIndex(null);
   }
 
+  function showStoreWarning(message: string, durationMs: number) {
+    if (warningTimeoutRef.current) {
+      clearTimeout(warningTimeoutRef.current);
+    }
+
+    setStoreWarningMessage(message);
+    warningTimeoutRef.current = setTimeout(() => {
+      setStoreWarningMessage(null);
+    }, durationMs);
+  }
+
   function handleStoreItemClick(itemIndex: number) {
     const item = STORE_ITEMS[itemIndex];
     if (!item) {
       return;
     }
 
-    if (score < item.price) {
-      if (warningTimeoutRef.current) {
-        clearTimeout(warningTimeoutRef.current);
-      }
+    if (nextRequiredStoreIndex === undefined) {
+      return;
+    }
 
-      setShowNotEnoughPoints(true);
-      warningTimeoutRef.current = setTimeout(() => {
-        setShowNotEnoughPoints(false);
-      }, 2000);
+    if (itemIndex !== nextRequiredStoreIndex) {
+      showStoreWarning("לא ניתן לרכוש חפץ זה, יש עוד חפצים שלא רכשת!", 2500);
 
       return;
     }
 
-    setShowNotEnoughPoints(false);
+    if (score < item.price) {
+      showStoreWarning("אין מספיק נקודות!", 2000);
+
+      return;
+    }
+
+    setStoreWarningMessage(null);
     setScore((current) => current - item.price);
     setInventoryItems((current) => [...current, item.imageSrc]);
   }
@@ -388,35 +424,55 @@ export default function Home() {
       <section className="panel panel-kid">
         <h2 className="panel-title">אדם</h2>
         <div className="kid-container">
-          {!kidImageFailed ? (
-            <>
-              <Image
-                src={KID_IMAGE_SRC}
-                alt="Kid character"
-                className="kid-image"
-                width={720}
-                height={960}
-                onError={() => setKidImageFailed(true)}
-              />
-              {equippedItems.length > 0 && (
-                <div className="equipped-items-overlay">
-                  {equippedItems.map((itemSrc) => (
+          <Image
+            src={KID_BACKGROUND_SRC}
+            alt="Kid background"
+            fill
+            className="kid-background-image"
+            sizes="(max-width: 1024px) 100vw, 260px"
+            priority
+          />
+          <Image
+            src={currentPlayerState.kidImageSrc}
+            alt="Kid character"
+            fill
+            className="kid-image"
+            sizes="(max-width: 1024px) 100vw, 260px"
+            priority
+          />
+
+          {equippedItems.length > 0 && (
+            <div className="equipped-items-overlay">
+              {equippedItems.map((itemSrc, index) => {
+                const placement = EQUIPPED_ITEM_PLACEMENTS[itemSrc] ?? {
+                  left: "50%",
+                  top: `${42 + index * 8}%`,
+                  width: "24%",
+                  zIndex: 4,
+                };
+
+                return (
+                  <div
+                    key={itemSrc}
+                    className="equipped-item-slot"
+                    style={{
+                      left: placement.left,
+                      top: placement.top,
+                      width: placement.width,
+                      transform: `translate(-50%, -50%) rotate(${placement.rotate ?? 0}deg)`,
+                      zIndex: placement.zIndex ?? 4,
+                    }}
+                  >
                     <Image
-                      key={itemSrc}
                       src={itemSrc}
                       alt="Equipped item"
-                      width={120}
-                      height={120}
+                      fill
+                      sizes="(max-width: 1024px) 28vw, 88px"
                       className="equipped-item-icon"
                     />
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="kid-placeholder">
-              <p>הוסיפו את התמונה שלכם</p>
-              <p className="kid-path">public/basic-kid.png</p>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -426,7 +482,7 @@ export default function Home() {
           className="store-button"
           onClick={() => {
             setIsStoreOpen(true);
-            setShowNotEnoughPoints(false);
+            setStoreWarningMessage(null);
           }}
         >
           חנות
@@ -640,7 +696,7 @@ export default function Home() {
           aria-label="Store"
           onClick={() => {
             setIsStoreOpen(false);
-            setShowNotEnoughPoints(false);
+            setStoreWarningMessage(null);
             if (warningTimeoutRef.current) {
               clearTimeout(warningTimeoutRef.current);
             }
@@ -650,7 +706,7 @@ export default function Home() {
             <div className="store-image-wrap">
               <Image src={STORE_IMAGE_SRC} alt="Store" width={900} height={700} className="store-image" priority />
 
-              {showNotEnoughPoints && <div className="store-warning">אין מספיק נקודות!</div>}
+              {storeWarningMessage && <div className="store-warning">{storeWarningMessage}</div>}
 
               {STORE_HOTSPOTS.map((spot, index) => (
                 <div
@@ -658,23 +714,45 @@ export default function Home() {
                   className="store-hotspot"
                   style={{ left: spot.left, top: spot.top, width: spot.width, height: spot.height }}
                 >
-                  {STORE_ITEMS[index] && (
-                    <Image
-                      src={STORE_ITEMS[index].imageSrc}
-                      alt="Store item"
-                      width={180}
-                      height={180}
-                      className="store-item-image"
-                    />
-                  )}
+                  {(() => {
+                    const storeItem = STORE_ITEMS[index];
+                    const isPurchased = !!storeItem && inventoryItems.includes(storeItem.imageSrc);
+                    const isLocked = nextRequiredStoreIndex !== undefined && index > nextRequiredStoreIndex;
+                    const isUnavailable = !storeItem || isPurchased;
+                    const isDisabledVisual = isUnavailable || isLocked;
 
-                  <button
-                    type="button"
-                    className="store-hotspot-button"
-                    onClick={() => handleStoreItemClick(index)}
-                    aria-label={`פריט ${index + 1}`}
-                  />
-                  {STORE_ITEMS[index] && <div className="store-price">{STORE_ITEMS[index].price} נקודות</div>}
+                    return (
+                      <>
+                        {storeItem && (
+                          <Image
+                            src={storeItem.imageSrc}
+                            alt="Store item"
+                            width={180}
+                            height={180}
+                            className={`store-item-image ${isDisabledVisual ? "is-disabled" : ""}`}
+                          />
+                        )}
+
+                        <button
+                          type="button"
+                          className={`store-hotspot-button ${isDisabledVisual ? "is-disabled" : ""}`}
+                          onClick={() => {
+                            if (isLocked) {
+                              showStoreWarning("לא ניתן לרכוש חפץ זה, יש עוד חפצים שלא רכשת!", 2500);
+                              return;
+                            }
+
+                            handleStoreItemClick(index);
+                          }}
+                          aria-label={`פריט ${index + 1}`}
+                          aria-disabled={isDisabledVisual}
+                          disabled={isUnavailable}
+                        />
+
+                        {storeItem && <div className="store-price">{storeItem.price} נקודות</div>}
+                      </>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
